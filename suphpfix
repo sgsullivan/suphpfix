@@ -1,0 +1,79 @@
+#!/usr/bin/env perl
+# This file is part of suphpfix.
+
+# suphpfix is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# suphpfix is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with suphpfix.  If not, see <http://www.gnu.org/licenses/>.
+
+use strict;
+use warnings;
+
+BEGIN { push @INC, '/usr/lib/suphpfix'; }
+
+use suPHPfix::Base;
+use suPHPfix::Save;
+use suPHPfix::Prep;
+use suPHPfix::Restore;
+use suPHPfix::API;
+use Getopt::Long;
+
+my $baseObj = suPHPfix::Base->new();
+my $apiObj = suPHPfix::API->new();
+my $saveObj = suPHPfix::Save->new();
+my $restoreObj = suPHPfix::Restore->new();
+my $prepObj = suPHPfix::Prep->new();
+
+my $objects = {
+	base => $baseObj,
+	api => $apiObj,
+	save => $saveObj,
+	restore => $restoreObj,
+	prep => $prepObj,
+};
+
+$baseObj->do_startup({ objects => $objects });
+my ($prep,$save_state,$restore_state,$help,$version);
+GetOptions ('prep=s' => \$prep, 'save-state=s' => \$save_state, 'restore-state=s' => \$restore_state, 'help' => \$help, 'v' => \$version);
+if ( $save_state ) {
+	if ( $apiObj->valid_user({ objects => $objects, user => $save_state }) || $save_state eq 'all' ) {
+		$saveObj->do_save({ objects => $objects, param => $save_state });
+	}
+	else {
+		$baseObj->logger({ level => 'c', msg => "Invalid option or invalid user $save_state" });
+	}
+}
+if ( $prep ) {
+	if ( $apiObj->valid_user({ objects => $objects, user => $prep }) || $prep eq 'all' ) {
+		$prepObj->do_prep({ objects => $objects, param => $prep });
+	}
+	else {
+		$baseObj->logger({ level => 'c', msg => "Invalid option or invalid user $prep" });
+	}
+}
+if ( $restore_state ) {
+	if ( $apiObj->valid_user({ objects => $objects, user => $restore_state }) || $restore_state eq 'all' ) {
+		$restoreObj->do_restore({ objects => $objects, param => $restore_state });
+	}
+	else {
+		$baseObj->logger({ level => 'c', msg => "Invalid option or invalid user $restore_state" });
+	}
+}
+if ( $help ) {
+	$baseObj->help();
+}
+if ( $version ) {
+	$baseObj->show_version();
+}
+unless ( $prep || $save_state || $restore_state || $help || $version) {
+	$baseObj->help();
+}
+$baseObj->do_exit();
