@@ -18,20 +18,10 @@ use strict;
 use warnings;
 
 package suPHPfix::API;
+use parent 'suPHPfix::Base';
 
 require LWP::UserAgent;
 use Encode;
-
-#-------------------------------------------------------------------------------
-# Constructor
-#-------------------------------------------------------------------------------
-
-sub new {
-	my ($class) = @_;
-	my ($self) = {};
-	bless ($self, $class);
-	return $self;
-}
 
 #-------------------------------------------------------------------------------
 # Methods
@@ -40,9 +30,8 @@ sub new {
 sub valid_user {
 	my $self = shift;
 	my $opts = shift;
-	die "Objects not passed to valid_user!" unless $opts->{objects};
-	$opts->{objects}->{base}->logger({ level => 'c', msg => 'user was not passed to valid_user, cannot continue!' }) unless $opts->{user};
-	my $accntList = $self->call({ objects => $opts->{objects}, url => "http://127.0.0.1:2086/json-api/listaccts" });
+	$self->logger({ level => 'c', msg => 'user was not passed to valid_user, cannot continue!' }) unless $opts->{user};
+	my $accntList = $self->call({ url => "http://127.0.0.1:2086/json-api/listaccts" });
 	for my $userCnt( @{$accntList->{acct}} ) {
 		if ( $userCnt->{user} eq $opts->{user} ) {
 			return 1;
@@ -54,10 +43,9 @@ sub valid_user {
 sub call {
 	my $self = shift;
 	my $opts = shift;
-	die "Objects not passed to call!" unless $opts->{objects};
-	$opts->{objects}->{base}->logger({ level => 'c', msg => 'call called with no API url!' }) unless $opts->{url};
+	$self->logger({ level => 'c', msg => 'call called with no API url!' }) unless $opts->{url};
 	my $params = $opts->{params} || {};
-	my $auth = $self->getAuth({ objects => $opts->{objects} });
+	my $auth = $self->getAuth();
 	require JSON;
 	my $json = new JSON;
 	my $ua = LWP::UserAgent->new;
@@ -75,7 +63,7 @@ sub call {
 		$decoded = $json->allow_nonref->utf8->relaxed->decode($result);
 	};
 	if ($@) {
-		$opts->{objects}->{base}->logger({ level => 'c', msg => "Didn't receive a valid JSON response from cPanel API." });
+		$self->logger({ level => 'c', msg => "Didn't receive a valid JSON response from cPanel API." });
 	}
 	return $decoded;
 }
@@ -83,10 +71,9 @@ sub call {
 sub getAuth {
 	my $self = shift;
 	my $opts = shift;
-	die "getAuth called without objects!" unless $opts->{objects};
 	system("QUERY_STRING=\\\"regen=1\\\" /usr/local/cpanel/whostmgr/bin/whostmgr ./setrhash &> /dev/null");
 	unless ( -e '/root/.accesshash' ) {
-		$opts->{objects}->{base}->logger({ level => 'c', msg => "Failed to automatically generate hash! Please try logging into WHM and click `Setup Remote Access Key` and then re-run this script." });
+		$self->logger({ level => 'c', msg => "Failed to automatically generate hash! Please try logging into WHM and click `Setup Remote Access Key` and then re-run this script." });
 	}
 	open FILE, "</root/.accesshash";
 	my $hash = do { local $/; <FILE> };

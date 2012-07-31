@@ -27,9 +27,10 @@ use Unix::PID;
 #-------------------------------------------------------------------------------
 
 my %base_conf = (
-	version => '3.0.0-7',
+	version => '3.0.0-8',
 	lock_file => '/var/lock/suphpfix.lock',
 	log_path => '/var/log',
+	all_user_list => '/var/cache/suphpfix/backedupUserList.all',
 	log_file => '/var/log/suphpfix.log',
 	store_path => '/var/cache/suphpfix',
 	author => 'scottgregorysullivan@gmail.com',
@@ -41,10 +42,7 @@ my %base_conf = (
 #-------------------------------------------------------------------------------
 
 sub new {
-	my ($class) = @_;
-	my ($self) = {};
-	bless ($self, $class);
-	return $self;
+	return bless {}, shift;
 }
 
 #-------------------------------------------------------------------------------

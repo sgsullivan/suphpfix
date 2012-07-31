@@ -18,19 +18,9 @@ use strict;
 use warnings;
 
 package suPHPfix::Restore;
+use parent 'suPHPfix::API';
 
 require JSON;
-
-#-------------------------------------------------------------------------------
-# Constructor
-#-------------------------------------------------------------------------------
-
-sub new {
-	my ($class) = @_;  
-	my ($self) = {};
-	bless ($self, $class);
-	return $self;
-}
 
 #-------------------------------------------------------------------------------
 # Methods
@@ -39,15 +29,15 @@ sub new {
 sub do_restore {
 	my $self = shift;
 	my $opts = shift;
-	unless ( $opts->{param} || $opts->{objects} ) { 
-		die "do_restore not passed param or objects!";
+	unless ( $opts->{param} ) { 
+		die "do_restore not passed param!";
 	}
 	my $json = new JSON;
-	my $save_confref = $opts->{objects}->{save}->get_saveconf();
-	my %save_conf = %$save_confref;
+	my $base_conf_ref = $self->get_baseconf();
+	my %base_conf = %$base_conf_ref;
 	if ( $opts->{param} eq 'all' ) {
 		## 'restore-state' all users..
-		open FD, "$save_conf{'all_user_list'}" || $opts->{objects}->{base}->logger({ level => 'c', msg => "Can't open datastore file ($save_conf{'all_user_list'}): $!" });
+		open FD, "$base_conf{'all_user_list'}" || $self->logger({ level => 'c', msg => "Can't open datastore file ($base_conf{'all_user_list'}): $!" });
 		my @backedUpCPusers = <FD>;
 		close FD;
 		my $to_restore_total = scalar(@backedUpCPusers);
@@ -55,23 +45,21 @@ sub do_restore {
 		for my $user ( @backedUpCPusers ) {
 			chomp($user);
 			my $cpUser = $user;
-			$opts->{objects}->{base}->print_n({ msg => "Reverting suPHP fixes for $cpUser.." });
+			$self->print_n({ msg => "Reverting suPHP fixes for $cpUser.." });
 			### Let's make sure the cPanel account to be restored still exists on the server.
-			unless ( $opts->{objects}->{api}->valid_user({ objects => $opts->{objects}, user => $cpUser }) ) {
-				$opts->{objects}->{base}->print_w({ msg => "cPanel user '$cpUser' is no longer a valid user on this system; skipping..." });
+			unless ( $self->valid_user({ user => $cpUser }) ) {
+				$self->print_w({ msg => "cPanel user '$cpUser' is no longer a valid user on this system; skipping..." });
 				next;
 			}
-			my $base_conf_ref = $opts->{objects}->{base}->get_baseconf();
-			my %base_conf = %$base_conf_ref;
 			my $json_file_path = $base_conf{'store_path'};
 			$json_file_path .= "/datastore_suphpfix.";
 			$json_file_path .= "$cpUser.json";
 			unless ( -e $json_file_path ) {
-				$opts->{objects}->{base}->print_w({ msg => "Datastore file ($json_file_path) for $cpUser no longer exists. Please take another snapshot or restore datastore files from a previous snapshot. Skipping..." });
+				$self->print_w({ msg => "Datastore file ($json_file_path) for $cpUser no longer exists. Please take another snapshot or restore datastore files from a previous snapshot. Skipping..." });
 				next;
 			}
 			if ( -z $json_file_path ) {
-				$opts->{objects}->{base}->print_w({ msg => "Datastore file ($json_file_path) for $cpUser exists but is empty. Please take another snapshot or restore datastore files from a previous snapshot. Skipping..." });
+				$self->print_w({ msg => "Datastore file ($json_file_path) for $cpUser exists but is empty. Please take another snapshot or restore datastore files from a previous snapshot. Skipping..." });
 				next;
 			}
 			open FILE, "<$json_file_path";
@@ -82,14 +70,14 @@ sub do_restore {
 				$d_struct = $json->allow_nonref->utf8->relaxed->decode($json_text);
 			};
 			if ($@) {
-				$opts->{objects}->{base}->print_w({ msg => "Datastore file ($json_file_path) is not valid JSON. Please take another snapshot or restore datastore files from a previous snapshot. Skipping..." });
+				$self->print_w({ msg => "Datastore file ($json_file_path) is not valid JSON. Please take another snapshot or restore datastore files from a previous snapshot. Skipping..." });
 				next;
 			}
-			$opts->{objects}->{base}->print_i({ msg => "Reverting file/dir permissions/ownerships for $cpUser.." });
+			$self->print_i({ msg => "Reverting file/dir permissions/ownerships for $cpUser.." });
 			my $restore_slot = 0;
 			for my $restore_user ( @{$d_struct->{acct}->{cpanelUser}} ) {
 				unless ( -e @{$d_struct->{acct}->{file}}["$restore_slot"] ) {
-					$opts->{objects}->{base}->print_w({ msg => "@{$d_struct->{acct}->{file}}[\"$restore_slot\"] no longer exists, skipping..." });
+					$self->print_w({ msg => "@{$d_struct->{acct}->{file}}[\"$restore_slot\"] no longer exists, skipping..." });
 					$restore_slot++;
 					next;
 				}
@@ -100,33 +88,31 @@ sub do_restore {
 				$restore_slot++;
 			}
 			if ( -d  @{$d_struct->{acct}->{file}}[0] && @{$d_struct->{acct}->{file}}[0] =~ /public_html/ ) {
-				$opts->{objects}->{base}->print_i({ msg => "Uncommenting php tweaks for $user.." });
+				$self->print_i({ msg => "Uncommenting php tweaks for $user.." });
 				system("find @{$d_struct->{acct}->{file}}[0] -name .htaccess -exec sed -i 's/^#php_/php_/g' {} \\\;");
 			}
 			else {
-				$opts->{objects}->{base}->logger({ level => 'w', msg => "do_restore() base document root (@{$d_struct->{acct}->{file}}[0]) doesn't exist, or doesn't contain public_html.." });
+				$self->logger({ level => 'w', msg => "do_restore() base document root (@{$d_struct->{acct}->{file}}[0]) doesn't exist, or doesn't contain public_html.." });
 			}
-			$opts->{objects}->{base}->print_n({ msg => "suPHP fixes reverted for $cpUser! {Completed: $restored_accounts/$to_restore_total}" });
+			$self->print_n({ msg => "suPHP fixes reverted for $cpUser! {Completed: $restored_accounts/$to_restore_total}" });
 			$restored_accounts++;
 		}
-		$opts->{objects}->{base}->print_n({ msg => "suPHP fixes reverted for $to_restore_total accounts." });
+		$self->print_n({ msg => "suPHP fixes reverted for $to_restore_total accounts." });
 	}
 	else {
 		## 'restore-state' single user..
-		$opts->{objects}->{base}->print_n({ msg => "Reverting suPHP fixes for $opts->{param}.." });
-		unless ( $opts->{objects}->{api}->valid_user({ objects => $opts->{objects}, user => $opts->{param} }) ) {
-			$opts->{objects}->{base}->print_c({ msg => "cPanel user '$opts->{param}' is no longer a valid user on this system!" });
+		$self->print_n({ msg => "Reverting suPHP fixes for $opts->{param}.." });
+		unless ( $self->valid_user({ user => $opts->{param} }) ) {
+			$self->print_c({ msg => "cPanel user '$opts->{param}' is no longer a valid user on this system!" });
 		}
-		my $base_conf_ref = $opts->{objects}->{base}->get_baseconf();
- 		my %base_conf = %$base_conf_ref;
 		my $json_file_path = $base_conf{'store_path'};
 		$json_file_path .= "/datastore_suphpfix.";
 		$json_file_path .= "$opts->{param}.json";
 		unless ( -e $json_file_path ) {
-			$opts->{objects}->{base}->print_c({ msg => "Datastore file ($json_file_path) for $opts->{param} no longer exists. Please take another snapshot or restore datastore files from a previous snapshot." });
+			$self->print_c({ msg => "Datastore file ($json_file_path) for $opts->{param} no longer exists. Please take another snapshot or restore datastore files from a previous snapshot." });
 		}
 		if ( -z $json_file_path ) {
-			$opts->{objects}->{base}->print_c({ msg => "Datastore file ($json_file_path) for $opts->{param} exists but is empty. Please take another snapshot or restore datastore files from a previous snapshot." });
+			$self->print_c({ msg => "Datastore file ($json_file_path) for $opts->{param} exists but is empty. Please take another snapshot or restore datastore files from a previous snapshot." });
 		}
 		open FILE, "<$json_file_path";
 		my $json_text = do { local $/; <FILE> };
@@ -136,13 +122,13 @@ sub do_restore {
 			$d_struct = $json->allow_nonref->utf8->relaxed->decode($json_text);
 		};
 		if ($@) {
-			$opts->{objects}->{base}->print_c({ msg => "Datastore file ($json_file_path) is not valid JSON. Please take another snapshot or restore datastore files from a previous snapshot." });
+			$self->print_c({ msg => "Datastore file ($json_file_path) is not valid JSON. Please take another snapshot or restore datastore files from a previous snapshot." });
 		}
-		$opts->{objects}->{base}->print_i({ msg => "Reverting file/dir permissions/ownerships for $opts->{param}.." });
+		$self->print_i({ msg => "Reverting file/dir permissions/ownerships for $opts->{param}.." });
 		my $restore_slot = 0;
 		for my $restore_user ( @{$d_struct->{acct}->{cpanelUser}} ) {
 			unless ( -e @{$d_struct->{acct}->{file}}["$restore_slot"] ) {
-				$opts->{objects}->{base}->print_w({ msg => "@{$d_struct->{acct}->{file}}[\"$restore_slot\"] no longer exists, skipping.." });
+				$self->print_w({ msg => "@{$d_struct->{acct}->{file}}[\"$restore_slot\"] no longer exists, skipping.." });
 				$restore_slot++;
 				next;
 			}
@@ -153,14 +139,14 @@ sub do_restore {
 			$restore_slot++;
 		}
 		if ( -d  @{$d_struct->{acct}->{file}}[0] && @{$d_struct->{acct}->{file}}[0] =~ /public_html/ ) {
-			$opts->{objects}->{base}->print_i({ msg => "Uncommenting php tweaks for	$opts->{param}.." });
+			$self->print_i({ msg => "Uncommenting php tweaks for	$opts->{param}.." });
 			system("find @{$d_struct->{acct}->{file}}[0] -name .htaccess -exec sed -i 's/^#php_/php_/g' {} \\\;");
 		}
 		else {
-			$opts->{objects}->{base}->logger({ level => 'w', msg => "do_restore() base document root (@{$d_struct->{acct}->{file}}[0]) doesn't exist, or doesn't contain public_html.." });
+			$self->logger({ level => 'w', msg => "do_restore() base document root (@{$d_struct->{acct}->{file}}[0]) doesn't exist, or doesn't contain public_html.." });
 		}
-		$opts->{objects}->{base}->print_n({ msg => "suPHP fixes	reverted for $opts->{param}!" });
-		$opts->{objects}->{base}->print_n({ msg => "suPHP fixes reverted for 1 accounts." });
+		$self->print_n({ msg => "suPHP fixes	reverted for $opts->{param}!" });
+		$self->print_n({ msg => "suPHP fixes reverted for 1 accounts." });
 	}
 }
 

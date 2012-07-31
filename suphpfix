@@ -19,61 +19,49 @@ use warnings;
 
 BEGIN { push @INC, '/usr/lib/suphpfix'; }
 
-use suPHPfix::Base;
 use suPHPfix::Save;
 use suPHPfix::Prep;
 use suPHPfix::Restore;
-use suPHPfix::API;
 use Getopt::Long;
 
-my $baseObj = suPHPfix::Base->new();
-my $apiObj = suPHPfix::API->new();
-my $saveObj = suPHPfix::Save->new();
-my $restoreObj = suPHPfix::Restore->new();
 my $prepObj = suPHPfix::Prep->new();
 
-my $objects = {
-	base => $baseObj,
-	api => $apiObj,
-	save => $saveObj,
-	restore => $restoreObj,
-	prep => $prepObj,
-};
-
-$baseObj->do_startup({ objects => $objects });
+$prepObj->do_startup();
 my ($prep,$save_state,$restore_state,$help,$version);
 GetOptions ('prep=s' => \$prep, 'save-state=s' => \$save_state, 'restore-state=s' => \$restore_state, 'help' => \$help, 'v' => \$version);
 if ( $save_state ) {
-	if ( $apiObj->valid_user({ objects => $objects, user => $save_state }) || $save_state eq 'all' ) {
-		$saveObj->do_save({ objects => $objects, param => $save_state });
+	my $saveObj = suPHPfix::Save->new();
+	if ( $saveObj->valid_user({ user => $save_state }) || $save_state eq 'all' ) {
+		$saveObj->do_save({ param => $save_state });
 	}
 	else {
-		$baseObj->logger({ level => 'c', msg => "Invalid option or invalid user $save_state" });
+		$saveObj->logger({ level => 'c', msg => "Invalid option or invalid user $save_state" });
 	}
 }
 if ( $prep ) {
-	if ( $apiObj->valid_user({ objects => $objects, user => $prep }) || $prep eq 'all' ) {
-		$prepObj->do_prep({ objects => $objects, param => $prep });
+	if ( $prepObj->valid_user({ user => $prep }) || $prep eq 'all' ) {
+		$prepObj->do_prep({ param => $prep });
 	}
 	else {
-		$baseObj->logger({ level => 'c', msg => "Invalid option or invalid user $prep" });
+		$prepObj->logger({ level => 'c', msg => "Invalid option or invalid user $prep" });
 	}
 }
 if ( $restore_state ) {
-	if ( $apiObj->valid_user({ objects => $objects, user => $restore_state }) || $restore_state eq 'all' ) {
-		$restoreObj->do_restore({ objects => $objects, param => $restore_state });
+	my $restoreObj = suPHPfix::Restore->new();
+	if ( $restoreObj->valid_user({ user => $restore_state }) || $restore_state eq 'all' ) {
+		$restoreObj->do_restore({ param => $restore_state });
 	}
 	else {
-		$baseObj->logger({ level => 'c', msg => "Invalid option or invalid user $restore_state" });
+		$restoreObj->logger({ level => 'c', msg => "Invalid option or invalid user $restore_state" });
 	}
 }
 if ( $help ) {
-	$baseObj->help();
+	$prepObj->help();
 }
 if ( $version ) {
-	$baseObj->show_version();
+	$prepObj->show_version();
 }
 unless ( $prep || $save_state || $restore_state || $help || $version) {
-	$baseObj->help();
+	$prepObj->help();
 }
-$baseObj->do_exit();
+$prepObj->do_exit();

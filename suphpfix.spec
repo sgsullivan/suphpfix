@@ -1,7 +1,7 @@
 Summary: Corrects common issues that are often encountered when switching to CGI/FCGI/suPHP (with suexec enabled) on cPanel machines. Also has ability to backup changes for later restores.
 Name: suphpfix
 Version: 3.0.0
-Release: 7
+Release: 8
 Group: System Tools/Utilities
 URL: http://scripts.ssullivan.org/git
 License: GPL
@@ -32,6 +32,7 @@ mkdir -p ${RPM_BUILD_ROOT}/var/cache/suphpfix
 mkdir -p ${RPM_BUILD_ROOT}/usr/bin
 
 install -m700 suphpfix ${RPM_BUILD_ROOT}/usr/bin/suphpfix
+install -m644 COPYING ${RPM_BUILD_ROOT}/usr/lib/suphpfix/suPHPfix/COPYING
 install -m644 libs/API.pm ${RPM_BUILD_ROOT}/usr/lib/suphpfix/suPHPfix/API.pm
 install -m644 libs/Prep.pm ${RPM_BUILD_ROOT}/usr/lib/suphpfix/suPHPfix/Prep.pm
 install -m644 libs/Save.pm ${RPM_BUILD_ROOT}/usr/lib/suphpfix/suPHPfix/Save.pm
@@ -44,6 +45,7 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root)
 /usr/bin/suphpfix
+/usr/lib/suphpfix/suPHPfix/COPYING
 /usr/lib/suphpfix/suPHPfix/API.pm
 /usr/lib/suphpfix/suPHPfix/Prep.pm
 /usr/lib/suphpfix/suPHPfix/Save.pm
@@ -63,5 +65,7 @@ else
 fi
 
 %changelog
+* Tue Jul 31 2012 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.0-8
+- Code cleanup; use inheritance.
 * Fri Jul 20 2012 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.0-7
 - First public release. 
