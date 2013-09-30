@@ -20,14 +20,16 @@ use warnings;
 package suPHPfix::Base;
 use Term::ANSIColor;
 use File::Path qw(mkpath);
-use Unix::PID;
+use File::Find;
+
 
 #-------------------------------------------------------------------------------
 # Configuration
 #-------------------------------------------------------------------------------
 
 my %base_conf = (
-	version => '3.0.0-8',
+	version => '3.0.7',
+	warn_sleep_seconds => '10',
 	lock_file => '/var/lock/suphpfix.lock',
 	log_path => '/var/log',
 	all_user_list => '/var/cache/suphpfix/backedupUserList.all',
@@ -53,7 +55,7 @@ sub help {
 	my $self = shift;
 	my $help_msg = "\nsuPHPfix help --- version: $base_conf{'version'}
 
-USAGE: $0 [--prep (all||cPanelUser)|--save-state (all||cPanelUser)|--restore-state (all||cPanelUser)]
+USAGE: $0 [--prep (all||cPanelUser) [OPTIONAL_ARGS]|--save-state (all||cPanelUser) [OPTIONAL_ARGS]|--restore-state (all||cPanelUser) [OPTIONAL_ARGS]]
 
 --prep  -->
 	Accepts either 'all' to prep all cPanel users on the system for suPHP, or the individual cPanel
@@ -75,8 +77,19 @@ USAGE: $0 [--prep (all||cPanelUser)|--save-state (all||cPanelUser)|--restore-sta
 --help -->
 	Show this help message.
 
-If you need support, or have found a bug, please let the author Scott Sullivan know of this. You may contact me
-at $base_conf{'author'}.
+OPTIONAL ARGUMENTS:
+  --clobber-hard-links -->
+    You are requesting to change permissions and ownerships of hardlink files. This is a potential security risk.
+    For this option to do anything, you must also pass '--yes-i-mean-it'.
+
+  --yes-i-mean-it -->
+    You want to perform the operation regardless of the warnings.
+
+  --ownerships-only -->
+    You want to perform only the ownership changes. This option cannot be combined with --perms-only.
+
+  --perms-only -->
+    You want perform only the permission changes. This option cannot be combined with --ownerships-only.
 	
 ";
 	print $help_msg , "\n";
@@ -89,6 +102,7 @@ sub show_version {
 
 sub do_startup {
 	my $self = shift;
+	$self->logger({ level => 'n', msg => "Initiated Startup" });
 	$self->show_gpl();
 	$self->ensure_root();
 	$self->can_run();
@@ -98,11 +112,27 @@ sub do_startup {
 }
 
 sub show_gpl {
-	print "\nsuphpfix  Copyright (C) 2012  Scott Sullivan ($base_conf{'author'})
+	print "\nsuphpfix  Copyright (C) 2009-2013  Scott Sullivan ($base_conf{'author'})
 This program comes with ABSOLUTELY NO WARRANTY; for details refer to the GPLv3 
 license, in the source of this application. This is free software, and you are 
 welcome to redistribute it under certain conditions; refer to the GPLv3 for
 details.\n\n";
+}
+
+sub hlink_warning {
+	my $self = shift;
+	my $opts = shift;
+
+	my $warn_msg = "Using option '--clobber-hard-links' is a potential security risk.";
+	if ( $opts->{yes_i_mean_it} ) {
+		$self->print_w({ msg => "$warn_msg Proceeding anyways in $base_conf{'warn_sleep_seconds'} seconds per option '--yes-i-mean-it'...\n" });
+		$base_conf{'clobber_hlinks'} = 1;
+		sleep $base_conf{'warn_sleep_seconds'};
+	}
+	else {
+		$self->print_w({ msg => "$warn_msg If you understand the risk and wish to proceed anyways, please add option '--yes-i-mean-it'.\n"});
+		$self->do_exit();
+	}
 }
 
 sub lock_stale {
@@ -110,12 +140,15 @@ sub lock_stale {
 	open FH, "<", "$base_conf{lock_file}" || $self->logger({ level => 'c', msg => "Unable to open $base_conf{lock_file}!" });
 	my $pid = <FH>;
 	close(FH);
-	my $pidObj = Unix::PID->new();
-	unless ( $pidObj->is_pid_running($pid) ) {
-		# lock file is stale, return true.
+	
+	if ( $pid && kill(0 => $pid) ) {
+		# Not stale
+		return 0;
+	}
+	else {
+		# Stale
 		return 1;
 	}
-	return 0;
 }
 
 sub can_run {
@@ -218,12 +251,14 @@ sub do_exit {
 		}
 	}
 	unlink($base_conf{'lock_file'});
+	$self->logger({ level => 'n', msg => "Initiated Shutdown" });
 	exit 1;
 }
 
 sub place_lock {
 	my $self = shift;
-	open(FH,">$base_conf{'lock_file'}") or $self->logger({ level => 'c', msg => "Unable to create lock file! Got: $!" });
+	open(my $fh, '>', $base_conf{'lock_file'}) || $self->logger({ level => 'c', msg => "Unable to create lock file! Got: $!" });
+	print $fh $$;
 	close(FH);
 }
 
@@ -330,6 +365,84 @@ If you need help, consult one of the helpers ($base_conf{'helpers'}) or the auth
 	else {
 		print "$cat_type $opts->{msg}\n";
 	}
+}
+
+sub get_recursive_dirs {
+	my $self = shift;
+	my $opts = shift;
+
+	my @dirs = ();
+	my $recursive_find_dir = sub {
+		push(@dirs, $_) if ( -d $_ );
+	};
+
+	find({ wanted => \&$recursive_find_dir, no_chdir => 1 }, $opts->{dir});
+	
+	return \@dirs;
+}
+
+sub get_recursive_files {
+	my $self = shift;
+	my $opts = shift;
+
+	my @files = ();
+
+	# Find all files to chown/chmod, including hard links..
+	if ( $base_conf{'clobber_hlinks'} ) {
+		$self->logger({ level => 'w', msg => "Hard links will be included per user request!" });
+		my $recursive_find_file = sub {
+			if ( -f $_ ) {
+				push(@files, $_);
+				my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = $self->get_stat({ name => $_ });
+				$self->print_w({ msg => "Hardlinked file [$_] marked for modification!" }) if ( $nlink > 1 );
+			}
+		};
+
+		find({ wanted => \&$recursive_find_file, no_chdir => 1 }, $opts->{dir});
+	}
+	# Find all files to chown/chmod, excluding hard links..
+	else {
+		my $recursive_find_file = sub {
+			my $file_name = $_;
+			if ( -f $file_name ) {
+				my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = $self->get_stat({ name => $file_name });
+				if ( $nlink <= 1 ) {
+					push(@files, $file_name);
+				}
+				else {
+					$self->print_n({ msg => "Skipping hardlinked file [$file_name]" });
+				}
+			}
+		};
+
+		find({ wanted => \&$recursive_find_file, no_chdir => 1 }, $opts->{dir});
+	}
+
+	return \@files;
+}
+
+sub get_stat {
+	my $self = shift;
+	my $opts = shift;
+
+	return my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = stat($opts->{name});
+}
+
+sub set_owner_or_perm_only {
+	my $self = shift;
+	my $opts = shift;
+
+	if ( $opts->{ownerships_only} && $opts->{perms_only} ) {
+		$self->logger({ level => 'c', msg => "Conflicting options given ownerships-only & perms-only" });
+	}
+
+	if ( $opts->{ownerships_only} ) {
+		$base_conf{'ownerships_only'} = 1;
+	}
+	elsif ( $opts->{perms_only} ) {
+		$base_conf{'perms_only'} = 1;
+	}
+
 }
 
 

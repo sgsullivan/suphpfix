@@ -1,9 +1,9 @@
 Summary: Corrects common issues that are often encountered when switching to CGI/FCGI/suPHP (with suexec enabled) on cPanel machines. Also has ability to backup changes for later restores.
 Name: suphpfix
-Version: 3.0.0
-Release: 8
+Version: 3.0.7
+Release: 1
 Group: System Tools/Utilities
-URL: http://scripts.ssullivan.org/git
+URL: http://ssullivan.org/git
 License: GPL
 Prefix: %{_prefix}
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
@@ -22,7 +22,7 @@ it made any changes. This is useful when users decide CGI/FCGI/suPHP
 changes made by suphpfix.
 
 %prep
-%setup -q -T -D
+%setup -q -T -D -n suphpfix
 
 %install
 rm -fr ${RPM_BUILD_ROOT}
@@ -53,18 +53,35 @@ rm -rf $RPM_BUILD_ROOT
 /usr/lib/suphpfix/suPHPfix/Base.pm
 
 %post
-if [ -f /scripts/perlinstaller ]; then
-  echo "Compiling perl-json.."
-  /scripts/perlinstaller JSON > /dev/null 2>&1
-  echo "Complete."
-  echo "Compiling Unix::PID.."
-  /scripts/perlinstaller Unix::PID > /dev/null 2>&1
-  echo "Complete."
-else
-  echo "WARNING: /scripts/perlinstaller doesn't exist, is this a cPanel machine?" 2>&1
+if [ $1 == 1 ]; then
+  if [ -f /scripts/perlinstaller ]; then
+    echo "Compiling perl-json.."
+    /scripts/perlinstaller JSON > /dev/null 2>&1
+    echo "Complete."
+  else
+    echo "WARNING: /scripts/perlinstaller doesn't exist, is this a cPanel machine?" 2>&1
+  fi
 fi
 
 %changelog
+* Thu Sep 19 2013 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.7-1
+- Warn user when hardlinked file marked for modification.
+* Fri Sep 13 2013 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.6-1
+- Report skipped hardlink files.
+* Fri Sep 13 2013 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.5-1
+- Restore: Don't mess with htaccess if --ownerships-only or --perms-only given.
+* Fri Sep 13 2013 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.4-2
+- Only compile perl-json on install not upgrade.
+* Fri Sep 13 2013 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.4-1
+- Update help docs. Don't touch htaccess files if --ownerships-only or --perms-only given.
+* Tue Aug 20 2013 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.3-1
+- Various code cleanups.
+* Tue Aug 20 2013 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.2-1
+- Use pure perl in prep for chmods.
+* Fri Aug 16 2013 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.1-2
+- Add options --ownerships-only & --perms-only. 
+* Thu Aug 15 2013 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.1-1
+- For security reasons, never adjust ownerships or permissions on a hard linked file.
 * Tue Jul 31 2012 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.0-8
 - Code cleanup; use inheritance.
 * Fri Jul 20 2012 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.0-7

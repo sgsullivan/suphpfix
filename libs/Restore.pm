@@ -30,11 +30,21 @@ sub do_restore {
 	my $self = shift;
 	my $opts = shift;
 	unless ( $opts->{param} ) { 
-		die "do_restore not passed param!";
+		$self->logger({ level => 'c', msg => 'do_restore not passed param!'});
 	}
 	my $json = new JSON;
 	my $base_conf_ref = $self->get_baseconf();
 	my %base_conf = %$base_conf_ref;
+
+
+	if ( $base_conf{ownerships_only} ) {
+		$self->logger({ level => 'n', msg => "Restoring only ownerships per user request!" });
+	}
+	elsif ( $base_conf{perms_only} ) {
+		$self->logger({ level => 'n', msg => "Restoring only permissions per user request!" });
+	}
+
+
 	if ( $opts->{param} eq 'all' ) {
 		## 'restore-state' all users..
 		open FD, "$base_conf{'all_user_list'}" || $self->logger({ level => 'c', msg => "Can't open datastore file ($base_conf{'all_user_list'}): $!" });
@@ -81,15 +91,50 @@ sub do_restore {
 					$restore_slot++;
 					next;
 				}
-				chmod oct(@{$d_struct->{acct}->{perm}}["$restore_slot"]), @{$d_struct->{acct}->{file}}["$restore_slot"];
-				my ($uname, $upass, $uuid, $ugid, $uquota, $ucomment, $ugcos, $udir, $ushell, $uexpire) = getpwnam(@{$d_struct->{acct}->{owner}}["$restore_slot"]);
-				my ($gname, $gpasswd, $ggid, $gmembers) = getgrnam(@{$d_struct->{acct}->{group}}["$restore_slot"]);
-				chown($uuid, $ggid, @{$d_struct->{acct}->{file}}["$restore_slot"]);
-				$restore_slot++;
+
+				if ( $base_conf{'clobber_hlinks'} ) {
+					if ( ! -d @{$d_struct->{acct}->{file}}["$restore_slot"] ) {
+						my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = $self->get_stat({ name => @{$d_struct->{acct}->{file}}["$restore_slot"] });
+						if ( $nlink > 1 ) {
+							$self->print_w({ msg => "Clobbering hard link file @{$d_struct->{acct}->{file}}[\"$restore_slot\"] per user request!" });
+						}
+					}
+				}
+				else {
+					if ( ! -d @{$d_struct->{acct}->{file}}["$restore_slot"] ) {
+						my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = $self->get_stat({ name => @{$d_struct->{acct}->{file}}["$restore_slot"] });
+						if ( $nlink > 1 ) {
+							$self->print_i({ msg => "Skipping hard link file @{$d_struct->{acct}->{file}}[$restore_slot].." });
+							$restore_slot++;
+							next;
+						}
+					}
+				}
+
+				if ( $base_conf{ownerships_only} ) {
+					my ($uname, $upass, $uuid, $ugid, $uquota, $ucomment, $ugcos, $udir, $ushell, $uexpire) = getpwnam(@{$d_struct->{acct}->{owner}}["$restore_slot"]);
+					my ($gname, $gpasswd, $ggid, $gmembers) = getgrnam(@{$d_struct->{acct}->{group}}["$restore_slot"]);
+					chown($uuid, $ggid, @{$d_struct->{acct}->{file}}["$restore_slot"]);
+					$restore_slot++;
+				}
+				elsif ( $base_conf{perms_only} ) {
+					chmod oct(@{$d_struct->{acct}->{perm}}["$restore_slot"]), @{$d_struct->{acct}->{file}}["$restore_slot"];
+					$restore_slot++;
+				}
+				else {
+					chmod oct(@{$d_struct->{acct}->{perm}}["$restore_slot"]), @{$d_struct->{acct}->{file}}["$restore_slot"];
+					my ($uname, $upass, $uuid, $ugid, $uquota, $ucomment, $ugcos, $udir, $ushell, $uexpire) = getpwnam(@{$d_struct->{acct}->{owner}}["$restore_slot"]);
+					my ($gname, $gpasswd, $ggid, $gmembers) = getgrnam(@{$d_struct->{acct}->{group}}["$restore_slot"]);
+					chown($uuid, $ggid, @{$d_struct->{acct}->{file}}["$restore_slot"]);
+					$restore_slot++;
+				}
 			}
 			if ( -d  @{$d_struct->{acct}->{file}}[0] && @{$d_struct->{acct}->{file}}[0] =~ /public_html/ ) {
-				$self->print_i({ msg => "Uncommenting php tweaks for $user.." });
-				system("find @{$d_struct->{acct}->{file}}[0] -name .htaccess -exec sed -i 's/^#php_/php_/g' {} \\\;");
+				# Don't touch htaccess if owner or perm only options given.
+				if ( ! $base_conf{ownerships_only} && ! $base_conf{perms_only} ) {
+					$self->print_i({ msg => "Uncommenting php tweaks for $user.." });
+					system("find @{$d_struct->{acct}->{file}}[0] -name .htaccess -exec sed -i 's/^#php_/php_/g' {} \\\;");
+				}
 			}
 			else {
 				$self->logger({ level => 'w', msg => "do_restore() base document root (@{$d_struct->{acct}->{file}}[0]) doesn't exist, or doesn't contain public_html.." });
@@ -132,15 +177,50 @@ sub do_restore {
 				$restore_slot++;
 				next;
 			}
-			chmod oct(@{$d_struct->{acct}->{perm}}["$restore_slot"]), @{$d_struct->{acct}->{file}}["$restore_slot"];
-			my ($uname, $upass, $uuid, $ugid, $uquota, $ucomment, $ugcos, $udir, $ushell, $uexpire) = getpwnam(@{$d_struct->{acct}->{owner}}["$restore_slot"]);
-			my ($gname, $gpasswd, $ggid, $gmembers) = getgrnam(@{$d_struct->{acct}->{group}}["$restore_slot"]);
-			chown($uuid, $ggid, @{$d_struct->{acct}->{file}}["$restore_slot"]);
-			$restore_slot++;
+
+			if ( $base_conf{'clobber_hlinks'} ) {
+				if ( ! -d @{$d_struct->{acct}->{file}}["$restore_slot"] ) {
+					my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = $self->get_stat({ name => @{$d_struct->{acct}->{file}}["$restore_slot"] });
+					if ( $nlink > 1 ) {
+						$self->print_w({ msg => "Clobbering hard link file @{$d_struct->{acct}->{file}}[\"$restore_slot\"] per user request!" });
+					}
+				}
+			}
+			else {
+				if ( ! -d @{$d_struct->{acct}->{file}}["$restore_slot"] ) {
+					my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = $self->get_stat({ name => @{$d_struct->{acct}->{file}}["$restore_slot"] });
+					if ( $nlink > 1 ) {
+						$self->print_i({ msg => "Skipping hard link file @{$d_struct->{acct}->{file}}[\"$restore_slot\"].." });
+						$restore_slot++;
+						next;
+					}
+				}
+			}
+
+			if ( $base_conf{ownerships_only} ) {
+				my ($uname, $upass, $uuid, $ugid, $uquota, $ucomment, $ugcos, $udir, $ushell, $uexpire) = getpwnam(@{$d_struct->{acct}->{owner}}["$restore_slot"]);
+				my ($gname, $gpasswd, $ggid, $gmembers) = getgrnam(@{$d_struct->{acct}->{group}}["$restore_slot"]);
+				chown($uuid, $ggid, @{$d_struct->{acct}->{file}}["$restore_slot"]);
+				$restore_slot++;
+			}
+			elsif ( $base_conf{perms_only} ) {
+				chmod oct(@{$d_struct->{acct}->{perm}}["$restore_slot"]), @{$d_struct->{acct}->{file}}["$restore_slot"];
+				$restore_slot++;
+			}
+			else {
+				chmod oct(@{$d_struct->{acct}->{perm}}["$restore_slot"]), @{$d_struct->{acct}->{file}}["$restore_slot"];
+				my ($uname, $upass, $uuid, $ugid, $uquota, $ucomment, $ugcos, $udir, $ushell, $uexpire) = getpwnam(@{$d_struct->{acct}->{owner}}["$restore_slot"]);
+				my ($gname, $gpasswd, $ggid, $gmembers) = getgrnam(@{$d_struct->{acct}->{group}}["$restore_slot"]);
+				chown($uuid, $ggid, @{$d_struct->{acct}->{file}}["$restore_slot"]);
+				$restore_slot++;
+			}
 		}
 		if ( -d  @{$d_struct->{acct}->{file}}[0] && @{$d_struct->{acct}->{file}}[0] =~ /public_html/ ) {
-			$self->print_i({ msg => "Uncommenting php tweaks for	$opts->{param}.." });
-			system("find @{$d_struct->{acct}->{file}}[0] -name .htaccess -exec sed -i 's/^#php_/php_/g' {} \\\;");
+			# Don't touch htaccess if owner or perm only options given.
+			if ( ! $base_conf{ownerships_only} && ! $base_conf{perms_only} ) {
+				$self->print_i({ msg => "Uncommenting php tweaks for	$opts->{param}.." });
+				system("find @{$d_struct->{acct}->{file}}[0] -name .htaccess -exec sed -i 's/^#php_/php_/g' {} \\\;");
+			}
 		}
 		else {
 			$self->logger({ level => 'w', msg => "do_restore() base document root (@{$d_struct->{acct}->{file}}[0]) doesn't exist, or doesn't contain public_html.." });

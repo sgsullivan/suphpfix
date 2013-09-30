@@ -27,8 +27,26 @@ use Getopt::Long;
 my $prepObj = suPHPfix::Prep->new();
 
 $prepObj->do_startup();
-my ($prep,$save_state,$restore_state,$help,$version);
-GetOptions ('prep=s' => \$prep, 'save-state=s' => \$save_state, 'restore-state=s' => \$restore_state, 'help' => \$help, 'v' => \$version);
+my ($prep,$save_state,$restore_state,$help,$version,$clobber_hlinks,$yes_i_mean_it,$ownerships_only,$perms_only);
+GetOptions ( 
+	'prep=s' => \$prep, 
+	'save-state=s' => \$save_state, 
+	'restore-state=s' => \$restore_state, 
+	'help' => \$help, 
+	'v' => \$version,
+	'clobber-hard-links' => \$clobber_hlinks,
+	'yes-i-mean-it' => \$yes_i_mean_it,
+	'ownerships-only' => \$ownerships_only,
+	'perms-only' => \$perms_only
+);
+
+if ( ! defined($prep) && ! defined($save_state) && ! defined($restore_state) && ! defined($help) && ! defined($version) || defined($ownerships_only) && defined($perms_only) ) {
+	$prepObj->help();
+}
+
+$prepObj->hlink_warning({ yes_i_mean_it => $yes_i_mean_it }) if ( $clobber_hlinks );
+$prepObj->set_owner_or_perm_only({ ownerships_only => $ownerships_only, perms_only => $perms_only });
+
 if ( $save_state ) {
 	my $saveObj = suPHPfix::Save->new();
 	if ( $saveObj->valid_user({ user => $save_state }) || $save_state eq 'all' ) {
@@ -61,7 +79,5 @@ if ( $help ) {
 if ( $version ) {
 	$prepObj->show_version();
 }
-unless ( $prep || $save_state || $restore_state || $help || $version) {
-	$prepObj->help();
-}
+
 $prepObj->do_exit();

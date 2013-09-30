@@ -20,11 +20,14 @@ use warnings;
 package suPHPfix::Prep;
 use parent 'suPHPfix::API';
 
-use File::Find (); 
+use File::stat;
+use Fcntl ':mode';
+use File::Find ();
 use vars qw/*name *dir *prune/;
 *name   = *File::Find::name;
 *dir    = *File::Find::dir;
 *prune  = *File::Find::prune;
+
 
 #-------------------------------------------------------------------------------
 # Methods
@@ -128,6 +131,13 @@ sub runCmds {
 	my $self = shift;
 	my $opts = shift;
 
+	$self->print_i({ msg => "Discovered document root: $opts->{docroot}" });
+	my $base_conf_ref = $self->get_baseconf();
+	my %base_conf = %$base_conf_ref;
+
+	# Initial sanity checks
+	#######################################
+
 	unless ( -d $opts->{docroot} ) {
 		return(1,"Discovered document root ($opts->{docroot}) doesn't exist!")
 	}
@@ -137,57 +147,146 @@ sub runCmds {
 	if ( $opts->{home_dir} !~ m/^\/home/ ) {
 		return(1,"Discovered home dir ($opts->{home_dir}) for $opts->{user} doesn't start with /home*!");
 	}
-	$self->print_i({ msg => "Discovered document root: $opts->{docroot}" });
 
-	$self->print_i({ msg => "Removing group and world write.." });
-	system("find $opts->{docroot} -perm +022 -exec chmod go-w {} \\\;");
+	#
+	# Populate file & dir entries
+	#######################################
 
-	##### Dir permissions
-	$self->print_i({ msg => "Checking directory permissions.." });
-	our @dirs = ();
-	sub wanted_dirs {
-		my ($dev,$ino,$mode,$nlink,$uid,$gid);
-		(($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_)) && -d _ && push(@dirs, $name);
+	my $dirs = $self->get_recursive_dirs({ dir => $opts->{docroot} });
+	my $files;
+	if ( $base_conf{'clobber_hlinks'} ) {
+		$files = $self->get_recursive_files({ dir => $opts->{docroot}, no_hlinks => 0 });
 	}
-	File::Find::find({wanted => \&wanted_dirs}, "$opts->{docroot}");
-	for my $dir ( @dirs ) {
-		chmod oct('0755'), $dir;
+	else {
+		$files = $self->get_recursive_files({ dir => $opts->{docroot}, no_hlinks => 1 });
 	}
-	chmod oct('0750'), $opts->{docroot};
-	chmod oct('0711'), $opts->{home_dir};
 
-	##### Ownerships
-	$self->print_i({ msg => "Setting ownerships to $opts->{user}:$opts->{user}.." });
-	our @files = ();
-	sub wanted_files {
-	my ($dev,$ino,$mode,$nlink,$uid,$gid);
-		(($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_)) && -f _ && push(@files, $name);
-	}
-	File::Find::find({wanted => \&wanted_files}, "$opts->{docroot}");
-	for my $file ( @files ) {
-		my ($login,$pass,$uid,$gid) = getpwnam($opts->{user}) or $self->logger({ level => 'c', msg => "Can't find $opts->{user} in /etc/passwd; Can't get numeric uids!" });
-		chown($uid, $gid, $file);
-	}
-	for my $dir ( @dirs ) {
-		my ($login,$pass,$uid,$gid) = getpwnam($opts->{user}) or $self->logger({ level => 'c', msg => "Can't find $opts->{user} in /etc/passwd; Can't get numeric uids!" });
-		chown($uid, $gid, $dir);
-	}
+	#
+	# Get system user info
+	#######################################
+	
 	my ($login,$pass,$uid,$gid) = getpwnam($opts->{user}) or return(1,"Can't find $opts->{user} in /etc/passwd; Can't get numeric uids!");
-	chown($uid, $gid, $opts->{home_dir});
-	my $nuid; #we dont want uid of nobody user.
-	($login,$pass,$nuid,$gid) = getpwnam('nobody') or return(1,"Can't find nobody in /etc/passwd; Can't get numeric uids!");
-	chown($uid, $gid, $opts->{docroot});
+	my ($nobody_login,$nobody_pass,$nobody_uid,$nobody_gid) = getpwnam('nobody') or return(1,"Can't find nobody in /etc/passwd; Can't get numeric uids!");
 
-	# Files should be readable
-	$self->print_i({ msg => "Ensuring files are readable.." });
-	system("find $opts->{docroot} -type f -exec chmod ugo+r {} \\\;");
-
-	# If no htscanner, comment out php tweaks from .htaccess files.
-	unless ( $self->htscanner() ) {
-		$self->print_i({ msg => "Commenting out php tweaks from .htaccess files.." });
-		system("find $opts->{docroot} -name .htaccess -exec sed -i 's/^php_/#php_/g' {} \\\;");
+	#
+	# Directory Permissions & Ownerships
+	#######################################
+	
+	if ( $base_conf{ownerships_only} ) {
+		$self->print_i({ msg => "Checking directory ownerships..." });
+		for my $dir ( @{ $dirs } ) {
+			chown($uid, $gid, $dir);
+		}
+		chown($uid, $gid, $opts->{home_dir});
+		# public_html should be user:nobody
+		chown($uid, $nobody_gid, $opts->{docroot});
 	}
+	elsif ( $base_conf{perms_only} ) {
+		$self->print_i({ msg => "Checking directory permissions..." });
+		for my $dir ( @{ $dirs } ) {
+			chmod oct('0755'), $dir;
+		}
+		chmod oct('0750'), $opts->{docroot};
+		chmod oct('0711'), $opts->{home_dir};
+	}
+	else {
+		$self->print_i({ msg => "Checking directory permissions and ownerships..." });
+		for my $dir ( @{ $dirs } ) {
+			chmod oct('0755'), $dir;
+			chown($uid, $gid, $dir);	
+		}
+		chmod oct('0750'), $opts->{docroot};
+		chmod oct('0711'), $opts->{home_dir};
+		chown($uid, $gid, $opts->{home_dir});
+		# public_html should be user:nobody
+		chown($uid, $nobody_gid, $opts->{docroot});
+	}
+
+	#
+	# File Permissions & Ownerships
+	#######################################
+	
+	if ( $base_conf{ownerships_only} ) {
+		$self->print_i({ msg => "Checking file ownerships..." });
+		for my $file ( @{ $files } ) {
+			chown($uid, $gid, $file);
+		}
+	}
+
+	elsif ( $base_conf{perms_only} ) {
+		$self->print_i({ msg => "Checking file permissions..." });
+		for my $file ( @{ $files } ) {
+			# Perform chmod tasks on file.
+			$self->do_prep_perms_on_file({ file => $file });
+		}
+	}
+	else {
+		$self->print_i({ msg => "Checking file permissions and ownerships..." });
+		for my $file ( @{ $files } ) {
+			# Perform chmod tasks on file.
+			$self->do_prep_perms_on_file({ file => $file });
+			chown($uid, $gid, $file);
+		}
+	}
+
+	#
+	# Incompatible .htaccess entries
+	#######################################
+
+	# Don't touch htaccess if owner or perm only options given.
+	if ( ! $base_conf{ownerships_only} && ! $base_conf{perms_only} ) {
+		# If no htscanner, comment out php tweaks from .htaccess files.
+		unless ( $self->htscanner() ) {
+			$self->print_i({ msg => "Commenting out php tweaks from .htaccess files.." });
+			system("find $opts->{docroot} -name .htaccess -exec sed -i 's/^php_/#php_/g' {} \\\;");
+		}
+	}
+
 }
+
+sub do_prep_perms_on_file {
+	my $self = shift;
+	my $opts = shift;
+
+	my $file_info = stat($opts->{file});
+	my $retMode = $file_info->mode;
+	$retMode = $retMode & 0777;
+
+	# Remove group or world write... 
+	if ( $retMode & 022 ) {
+
+		# Get octal form of files permissions.
+		my $file_permissions_oct = sprintf "%04o", S_IMODE($retMode);
+
+		# Get all but last two (group and world) permission bits.
+		my $permissions_all_but_last_two_oct = substr($file_permissions_oct, 0, -2);
+		
+		# Get last two permission bits (group and world).
+		my $file_permissions_oct_group_world_oct = substr($file_permissions_oct, -2);
+		
+		my @bits = split("", $file_permissions_oct_group_world_oct);
+		my $bit_loop_iteration = 0;
+		for my $bit ( @bits ) {
+			my $bit_new = $bit - 2; # Remove write from octal bit.
+			$bits[$bit_loop_iteration] = $bit_new;
+			$bit_loop_iteration++;
+		}
+
+		my $new_octal_perm = $permissions_all_but_last_two_oct;
+		
+		if ( defined($bits[0]) && defined($bits[1]) ) {
+			$new_octal_perm .= $bits[0];
+			$new_octal_perm .= $bits[1];
+		}
+		else {
+			$self->logger({ level => 'c', msg => "Failed to get last two octal bits of [$opts->{file}]" });
+		}
+		
+		chmod oct($new_octal_perm), $opts->{file};
+	}
+
+}
+
 
 sub htscanner {
 	my $self = shift;

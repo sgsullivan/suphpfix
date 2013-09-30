@@ -20,13 +20,14 @@ use warnings;
 package suPHPfix::Save;
 use parent 'suPHPfix::API';
 
-use File::stat;
-use Fcntl ':mode';
 use File::Find ();
 use vars qw/*name *dir *prune/;
 *name   = *File::Find::name;
 *dir    = *File::Find::dir;
 *prune  = *File::Find::prune;
+use File::stat;
+use Fcntl ':mode';
+
 
 #-------------------------------------------------------------------------------
 # Methods
@@ -63,12 +64,17 @@ sub do_save {
 				mkdir $base_conf{store_path} ||	$self->logger->({ level => 'c', msg => "Failed to create $base_conf{'store_path'}; Got: $!" });
 			}
 			$self->print_i({ msg => "Recording the contents of $docRoot.." });
-			our @docRoot_contents = ();
-			sub wanted_to_save {
- 				my ($dev,$ino,$mode,$nlink,$uid,$gid);
- 				(($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_)) && push(@docRoot_contents,$name);
+			
+			my $dirs = $self->get_recursive_dirs({ dir => $docRoot });
+			my $files;
+			if ( $base_conf{'clobber_hlinks'} ) {
+				$files = $self->get_recursive_files({ dir => $docRoot, no_hlinks => 0 });
 			}
-			File::Find::find({wanted => \&wanted_to_save}, "$docRoot");
+			else {
+				$files = $self->get_recursive_files({ dir => $docRoot, no_hlinks => 1 });
+			}
+			my @docRoot_contents = (@{ $dirs }, @{ $files });
+
 			my ($error,$err_msg) = $self->savePermOwner({ cpUser => "$cpUser", docroot => "$docRoot" }, \@docRoot_contents );	
 			$saved_accounts++;
 			if ( $error && $err_msg ) {
@@ -96,12 +102,17 @@ sub do_save {
 					mkdir $base_conf{'store_path'} || $self->logger->({ level => 'c', msg => "Failed to create $base_conf{'store_path'}; Got: $!" });
 				}
 				$self->print_i({ msg => "Recording the contents of $docRoot.." });
-				our @docRoot_contents = ();
-				sub wanted_to_save_single {
-					my ($dev,$ino,$mode,$nlink,$uid,$gid);
-					(($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_)) && push(@docRoot_contents,$name);
+				
+				my $dirs = $self->get_recursive_dirs({ dir => $docRoot });
+				my $files;
+				if ( $base_conf{'clobber_hlinks'} ) {
+					$files = $self->get_recursive_files({ dir => $docRoot, no_hlinks => 0 });
 				}
-				File::Find::find({wanted => \&wanted_to_save_single}, "$docRoot");
+				else {
+					$files = $self->get_recursive_files({ dir => $docRoot, no_hlinks => 1 });
+				}
+				my @docRoot_contents = (@{ $dirs }, @{ $files });
+				
 				my ($error,$err_msg) = $self->savePermOwner({ cpUser => "$cpUser", docroot => "$docRoot" }, \@docRoot_contents );
 				if ( $error && $err_msg ) {
 					$self->print_w({ msg => "Failed saving state for $cpUser; Details:\n$err_msg" });
@@ -126,7 +137,7 @@ sub savePermOwner {
 			file => [ ],
 			perm => [ ],
 			owner => [ ],
-			roup => [ ],
+			group => [ ],
 		},
 	 );
 	my $file_counter = 0;
