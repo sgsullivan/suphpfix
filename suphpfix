@@ -29,55 +29,55 @@ my $prepObj = suPHPfix::Prep->new();
 $prepObj->do_startup();
 my ($prep,$save_state,$restore_state,$help,$version,$clobber_hlinks,$yes_i_mean_it,$ownerships_only,$perms_only);
 GetOptions ( 
-	'prep=s' => \$prep, 
-	'save-state=s' => \$save_state, 
-	'restore-state=s' => \$restore_state, 
-	'help' => \$help, 
-	'v' => \$version,
-	'clobber-hard-links' => \$clobber_hlinks,
-	'yes-i-mean-it' => \$yes_i_mean_it,
-	'ownerships-only' => \$ownerships_only,
-	'perms-only' => \$perms_only
+  'prep=s' => \$prep, 
+  'save-state=s' => \$save_state, 
+  'restore-state=s' => \$restore_state, 
+  'help' => \$help, 
+  'v' => \$version,
+  'clobber-hard-links' => \$clobber_hlinks,
+  'yes-i-mean-it' => \$yes_i_mean_it,
+  'ownerships-only' => \$ownerships_only,
+  'perms-only' => \$perms_only
 );
 
 if ( ! defined($prep) && ! defined($save_state) && ! defined($restore_state) && ! defined($help) && ! defined($version) || defined($ownerships_only) && defined($perms_only) ) {
-	$prepObj->help();
+  $prepObj->help();
 }
 
 $prepObj->hlink_warning({ yes_i_mean_it => $yes_i_mean_it }) if ( $clobber_hlinks );
 $prepObj->set_owner_or_perm_only({ ownerships_only => $ownerships_only, perms_only => $perms_only });
 
 if ( $save_state ) {
-	my $saveObj = suPHPfix::Save->new();
-	if ( $saveObj->valid_user({ user => $save_state }) || $save_state eq 'all' ) {
-		$saveObj->do_save({ param => $save_state });
-	}
-	else {
-		$saveObj->logger({ level => 'c', msg => "Invalid option or invalid user $save_state" });
-	}
+  my $saveObj = suPHPfix::Save->new();
+  if ( $saveObj->valid_user({ user => $save_state }) || $save_state eq 'all' ) {
+    $saveObj->do_save({ param => $save_state });
+  }
+  else {
+    $saveObj->logger({ level => 'c', msg => "Invalid option or invalid user $save_state" });
+  }
 }
 if ( $prep ) {
-	if ( $prepObj->valid_user({ user => $prep }) || $prep eq 'all' ) {
-		$prepObj->do_prep({ param => $prep });
-	}
-	else {
-		$prepObj->logger({ level => 'c', msg => "Invalid option or invalid user $prep" });
-	}
+  if ( $prepObj->valid_user({ user => $prep }) || $prep eq 'all' ) {
+    $prepObj->do_prep({ param => $prep });
+  }
+  else {
+    $prepObj->logger({ level => 'c', msg => "Invalid option or invalid user $prep" });
+  }
 }
 if ( $restore_state ) {
-	my $restoreObj = suPHPfix::Restore->new();
-	if ( $restoreObj->valid_user({ user => $restore_state }) || $restore_state eq 'all' ) {
-		$restoreObj->do_restore({ param => $restore_state });
-	}
-	else {
-		$restoreObj->logger({ level => 'c', msg => "Invalid option or invalid user $restore_state" });
-	}
+  my $restoreObj = suPHPfix::Restore->new();
+  if ( $restoreObj->valid_user({ user => $restore_state }) || $restore_state eq 'all' ) {
+    $restoreObj->do_restore({ param => $restore_state });
+  }
+  else {
+    $restoreObj->logger({ level => 'c', msg => "Invalid option or invalid user $restore_state" });
+  }
 }
 if ( $help ) {
-	$prepObj->help();
+  $prepObj->help();
 }
 if ( $version ) {
-	$prepObj->show_version();
+  $prepObj->show_version();
 }
 
 $prepObj->do_exit();

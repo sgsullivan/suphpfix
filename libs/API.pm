@@ -28,59 +28,59 @@ use Encode;
 #-------------------------------------------------------------------------------
 
 sub valid_user {
-	my $self = shift;
-	my $opts = shift;
-	$self->logger({ level => 'c', msg => 'user was not passed to valid_user, cannot continue!' }) unless $opts->{user};
-	my $accntList = $self->call({ url => "http://127.0.0.1:2086/json-api/listaccts" });
-	for my $userCnt( @{$accntList->{acct}} ) {
-		if ( $userCnt->{user} eq $opts->{user} ) {
-			return 1;
-		}
-	};
-	return 0;
+  my $self = shift;
+  my $opts = shift;
+  $self->logger({ level => 'c', msg => 'user was not passed to valid_user, cannot continue!' }) unless $opts->{user};
+  my $accntList = $self->call({ url => "http://127.0.0.1:2086/json-api/listaccts" });
+  for my $userCnt( @{$accntList->{acct}} ) {
+    if ( $userCnt->{user} eq $opts->{user} ) {
+      return 1;
+    }
+  };
+  return 0;
 }
 
 sub call {
-	my $self = shift;
-	my $opts = shift;
-	$self->logger({ level => 'c', msg => 'call called with no API url!' }) unless $opts->{url};
-	my $params = $opts->{params} || {};
-	my $auth = $self->getAuth();
-	require JSON;
-	my $json = new JSON;
-	my $ua = LWP::UserAgent->new;
-	$ua->agent("suPHPfix");
-	$ua->env_proxy();
-	my $request = HTTP::Request->new(POST => $opts->{url});
-	$request->header( Authorization => $auth );
-	$request->content_type('application/jsonrequest');
-	$request->content("$params");
-	my $response = $ua->request($request);
-	my $rawResponse = $response->content;
-	my $result = encode("UTF-8", $rawResponse);
-	my $decoded;
-	eval {
-		$decoded = $json->allow_nonref->utf8->relaxed->decode($result);
-	};
-	if ($@) {
-		$self->logger({ level => 'c', msg => "Didn't receive a valid JSON response from cPanel API." });
-	}
-	return $decoded;
+  my $self = shift;
+  my $opts = shift;
+  $self->logger({ level => 'c', msg => 'call called with no API url!' }) unless $opts->{url};
+  my $params = $opts->{params} || {};
+  my $auth = $self->getAuth();
+  require JSON;
+  my $json = new JSON;
+  my $ua = LWP::UserAgent->new;
+  $ua->agent("suPHPfix");
+  $ua->env_proxy();
+  my $request = HTTP::Request->new(POST => $opts->{url});
+  $request->header( Authorization => $auth );
+  $request->content_type('application/jsonrequest');
+  $request->content("$params");
+  my $response = $ua->request($request);
+  my $rawResponse = $response->content;
+  my $result = encode("UTF-8", $rawResponse);
+  my $decoded;
+  eval {
+    $decoded = $json->allow_nonref->utf8->relaxed->decode($result);
+  };
+  if ($@) {
+    $self->logger({ level => 'c', msg => "Didn't receive a valid JSON response from cPanel API." });
+  }
+  return $decoded;
 }
 
 sub getAuth {
-	my $self = shift;
-	my $opts = shift;
-	system("QUERY_STRING=\\\"regen=1\\\" /usr/local/cpanel/whostmgr/bin/whostmgr ./setrhash &> /dev/null");
-	unless ( -e '/root/.accesshash' ) {
-		$self->logger({ level => 'c', msg => "Failed to automatically generate hash! Please try logging into WHM and click `Setup Remote Access Key` and then re-run this script." });
-	}
-	open FILE, "</root/.accesshash";
-	my $hash = do { local $/; <FILE> };
-	close(FILE);
-	$hash =~ s/\n//g;
-	my $auth = "WHM root:" . $hash;
-	return $auth;
+  my $self = shift;
+  my $opts = shift;
+  system("QUERY_STRING=\\\"regen=1\\\" /usr/local/cpanel/whostmgr/bin/whostmgr ./setrhash &> /dev/null");
+  unless ( -e '/root/.accesshash' ) {
+    $self->logger({ level => 'c', msg => "Failed to automatically generate hash! Please try logging into WHM and click `Setup Remote Access Key` and then re-run this script." });
+  }
+  open FILE, "</root/.accesshash";
+  my $hash = do { local $/; <FILE> };
+  close(FILE);
+  $hash =~ s/\n//g;
+  my $auth = "WHM root:" . $hash;
+  return $auth;
 }
 
 
