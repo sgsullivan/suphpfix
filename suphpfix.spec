@@ -1,6 +1,6 @@
 Summary: Corrects common issues that are often encountered when switching to CGI/FCGI/suPHP (with suexec enabled) on cPanel machines. Also has ability to backup changes for later restores.
 Name: suphpfix
-Version: 3.0.7
+Version: 3.0.8
 Release: 1
 Group: System Tools/Utilities
 URL: http://ssullivan.org/git
@@ -64,6 +64,8 @@ if [ $1 == 1 ]; then
 fi
 
 %changelog
+* Thu Jan 02 2014 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.8-1
+- Utilize S_IWGRP && S_IWOTH in prep routine for determining group or world write.
 * Thu Sep 19 2013 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.7-1
 - Warn user when hardlinked file marked for modification.
 * Fri Sep 13 2013 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.6-1

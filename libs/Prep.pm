@@ -248,40 +248,57 @@ sub do_prep_perms_on_file {
   my $self = shift;
   my $opts = shift;
 
+  my $world_writable = 0;
+  my $group_writable = 0;
+
   my $file_info = stat($opts->{file});
   my $retMode = $file_info->mode;
   $retMode = $retMode & 0777;
 
+  $group_writable = 1 if ( $retMode & S_IWGRP );
+  $world_writable = 1 if ( $retMode & S_IWOTH );
+
   # Remove group or world write... 
-  if ( $retMode & 022 ) {
+  if ( $world_writable || $group_writable ) {
 
     # Get octal form of files permissions.
     my $file_permissions_oct = sprintf "%04o", S_IMODE($retMode);
 
     # Get all but last two (group and world) permission bits.
     my $permissions_all_but_last_two_oct = substr($file_permissions_oct, 0, -2);
-    
+
     # Get last two permission bits (group and world).
     my $file_permissions_oct_group_world_oct = substr($file_permissions_oct, -2);
-    
+
     my @bits = split("", $file_permissions_oct_group_world_oct);
-    my $bit_loop_iteration = 0;
-    for my $bit ( @bits ) {
-      my $bit_new = $bit - 2; # Remove write from octal bit.
-      $bits[$bit_loop_iteration] = $bit_new;
-      $bit_loop_iteration++;
+
+    # remove writable bit '2' from group if its writable.
+    if ( $group_writable ) {
+      if ( $bits[0] && $bits[0] >= 2 ) {
+        $bits[0] = $bits[0] - 2;
+      }
+    }
+  
+    # remove writable bit '2' from world if its writable.
+    if ( $world_writable ) {
+      if ( $bits[1] && $bits[1] >= 2 ) {
+        $bits[1] = $bits[1] - 2;
+      }
     }
 
+    # Start formulating new octal permission.
     my $new_octal_perm = $permissions_all_but_last_two_oct;
-    
+
     if ( defined($bits[0]) && defined($bits[1]) ) {
       $new_octal_perm .= $bits[0];
       $new_octal_perm .= $bits[1];
     }
     else {
-      $self->logger({ level => 'c', msg => "Failed to get last two octal bits of [$opts->{file}]" });
+      $self->logger({ 
+          level => 'c', 
+          msg => "Failed to get last two octal bits of [$opts->{file}]" 
+        });
     }
-    
     chmod oct($new_octal_perm), $opts->{file};
   }
 

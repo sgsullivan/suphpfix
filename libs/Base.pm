@@ -28,7 +28,7 @@ use File::Find;
 #-------------------------------------------------------------------------------
 
 my %base_conf = (
-  version => '3.0.7',
+  version => '3.0.8',
   warn_sleep_seconds => '10',
   lock_file => '/var/lock/suphpfix.lock',
   log_path => '/var/log',
