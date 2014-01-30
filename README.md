@@ -33,9 +33,11 @@ Examples:
 Saving states
 ===
 To save current permission/ownership states for all files/directories in every users WWW, run: 
+ 
  suphpfix --save-state all
  
 To save current permission/ownership states for all files/directories in the 'test' cPanel accounts WWW, run: 
+
  suphpfix --save-state test
 
 By default, this information will be stored in JSON files in /var/cache/suphpfix. 
@@ -43,106 +45,132 @@ By default, this information will be stored in JSON files in /var/cache/suphpfix
 Including Hardlinks: (Warning: Including hardlinks is not suggested)
 
 To save current permission/ownership states for all files/directories in every users WWW, run: 
+
  suphpfix --save-state all --clobber-hard-links --yes-i-mean-it
 
 To save current permission/ownership states for all files/directories in the 'test' cPanel accounts WWW, run: 
+
  suphpfix --save-state test --clobber-hard-links --yes-i-mean-it
  
 Fixing Common suPHP Conversion Problems
 ===
 
 To fix/prepare all cPanel accounts for the conversion to suPHP, you would run:
+
  suphpfix --prep all
  
 To fix/prepare the 'test' cPanel account for the conversion to suPHP, you would run: 
+
  suphpfix --prep test
  
 Ownerships Only:
 
 To execute only the ownerships portion of the "prep" routine for all accounts: 
+
  suphpfix --prep all --ownerships-only
  
 To execute only the ownerships portion of the "prep" routine for the 'test' account: 
+
  suphpfix --prep test --ownerships-only
  
 Permissions Only:
 
 To execute only the permissions portion of the "prep" routine for all accounts: 
+
  suphpfix --prep all --perms-only
  
 To execute only the permissions portion of the "prep" routine for the 'test' account: 
+
  suphpfix --prep test --perms-only
  
 Including Hardlinks: (Warning: Including hardlinks is not suggested)
 
 To fix/prepare all cPanel accounts for the conversion to suPHP, you would run:
+
  suphpfix --prep all --clobber-hard-links --yes-i-mean-it
  
 To fix/prepare the 'test' cPanel account for the conversion to suPHP, you would run: 
+
  suphpfix --prep test --clobber-hard-links --yes-i-mean-it
  
 Ownerships Only:
 
 To fix/prepare all cPanel accounts for the conversion to suPHP, you would run: 
+
  suphpfix --prep all --clobber-hard-links --yes-i-mean-it --ownerships-only
  
 To fix/prepare the 'test' cPanel account for the conversion to suPHP, you would run: 
+
  suphpfix --prep test --clobber-hard-links --yes-i-mean-it --ownerships-only
  
 Permissions Only:
 
 To fix/prepare all cPanel accounts for the conversion to suPHP, you would run:
+
  suphpfix --prep all --clobber-hard-links --yes-i-mean-it --perms-only
  
 To fix/prepare the 'test' cPanel account for the conversion to suPHP, you would run: 
+
  suphpfix --prep test --clobber-hard-links --yes-i-mean-it --perms-only
  
 Restoring States
 ===
 
 To restore all saved cPanel accounts permissions/ownerships in WWW, run: 
+
  suphpfix --restore-state all
  
 To restore just the 'test' cPanel accounts permissions/ownerships in WWW, run: 
+
  suphpfix --restore-state liquidweb
  
 Ownerships Only:
 
 To execute only the ownerships portion of the "restore" routine for all accounts: 
+
  suphpfix --restore-state all --ownerships-only
  
 To execute only the ownerships portion of the "restore" routine for the 'test' account: 
+
  suphpfix --restore-state test --ownerships-only
  
 Permissions Only:
 
 To execute only the permissions portion of the "restore" routine for all accounts: 
+
  suphpfix --restore-state all --perms-only
  
 To execute only the permissions portion of the "restore" routine for the 'test' account: 
+
  suphpfix --restore-state test --perms-only
  
 Including Hardlinks: (Warning: Including hardlinks is not suggested)
 
 To restore all saved cPanel accounts permissions/ownerships in WWW, run: 
+
  suphpfix --restore-state all --clobber-hard-links --yes-i-mean-it
  
 To restore just the 'test' cPanel accounts permissions/ownerships in WWW, run: 
+
  suphpfix --restore-state test --clobber-hard-links --yes-i-mean-it
  
 Ownerships Only:
 
 To restore all saved cPanel accounts permissions/ownerships in WWW, run: 
+
  suphpfix --restore-state all --clobber-hard-links --yes-i-mean-it --ownerships-only
  
 To restore just the 'test' cPanel accounts permissions/ownerships in WWW, run: 
+
  suphpfix --restore-state test --clobber-hard-links --yes-i-mean-it --ownerships-only
  
 Permissions Only:
 
 To restore all saved cPanel accounts permissions/ownerships in WWW, run: 
+
  suphpfix --restore-state all --clobber-hard-links --yes-i-mean-it --perms-only
  
 To restore just the 'test' cPanel accounts permissions/ownerships in WWW, run: 
+
  suphpfix --restore-state test --clobber-hard-links --yes-i-mean-it --perms-only
  
