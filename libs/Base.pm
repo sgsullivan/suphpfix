@@ -28,7 +28,7 @@ use File::Find;
 #-------------------------------------------------------------------------------
 
 my %base_conf = (
-  version => '3.0.8',
+  version => '3.0.9',
   warn_sleep_seconds => '10',
   lock_file => '/var/lock/suphpfix.lock',
   log_path => '/var/log',
@@ -112,7 +112,7 @@ sub do_startup {
 }
 
 sub show_gpl {
-  print "\nsuphpfix  Copyright (C) 2009-2013  Scott Sullivan ($base_conf{'author'})
+  print "\nsuphpfix  Copyright (C) 2009-2014  Scott Sullivan ($base_conf{'author'})
 This program comes with ABSOLUTELY NO WARRANTY; for details refer to the GPLv3 
 license, in the source of this application. This is free software, and you are 
 welcome to redistribute it under certain conditions; refer to the GPLv3 for
@@ -373,7 +373,7 @@ sub get_recursive_dirs {
 
   my @dirs = ();
   my $recursive_find_dir = sub {
-    push(@dirs, $_) if ( -d $_ );
+    push(@dirs, $_) if ( -d $_ && ! -l $_ );
   };
 
   find({ wanted => \&$recursive_find_dir, no_chdir => 1 }, $opts->{dir});
@@ -391,7 +391,7 @@ sub get_recursive_files {
   if ( $base_conf{'clobber_hlinks'} ) {
     $self->logger({ level => 'w', msg => "Hard links will be included per user request!" });
     my $recursive_find_file = sub {
-      if ( -f $_ ) {
+      if ( -f $_ && ! -l $_ ) {
         push(@files, $_);
         my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = $self->get_stat({ name => $_ });
         $self->print_w({ msg => "Hardlinked file [$_] marked for modification!" }) if ( $nlink > 1 );
@@ -404,7 +404,7 @@ sub get_recursive_files {
   else {
     my $recursive_find_file = sub {
       my $file_name = $_;
-      if ( -f $file_name ) {
+      if ( -f $file_name && ! -l $file_name ) {
         my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) = $self->get_stat({ name => $file_name });
         if ( $nlink <= 1 ) {
           push(@files, $file_name);
