@@ -1,6 +1,6 @@
 Summary: Corrects common issues that are often encountered when switching to CGI/FCGI/suPHP (with suexec enabled) on cPanel machines. Also has ability to backup changes for later restores.
 Name: suphpfix
-Version: 3.0.9
+Version: 3.0.10
 Release: 1
 Group: System Tools/Utilities
 URL: http://ssullivan.org/git
@@ -64,6 +64,8 @@ if [ $1 == 1 ]; then
 fi
 
 %changelog
+* Mon Mar 07 2016 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.10-1
+- Dont mess with /tmp files
 * Thu Jun 11 2014 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.9-1
 - Globally ignore symlinks for security reasons.
 * Thu Jan 02 2014 Scott Sullivan <scottgregorysullivan@gmail.com> 3.0.8-1

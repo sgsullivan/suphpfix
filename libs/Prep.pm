@@ -318,15 +318,7 @@ sub cleanup {
   my $self = shift;
   my $opts = shift;
   $self->print_i({ msg => "Cleaning up..." });
-  our @files = ();
-  sub wanted {
-    my ($dev,$ino,$mode,$nlink,$uid,$gid);
-     (($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_)) && push(@files,$name);
-  }
-  File::Find::find({wanted => \&wanted}, '/tmp/');
-  for my $file ( @files ) {
-    chmod oct('1777'), $file;
-  }
+  chmod oct('1777'), '/tmp';
   chmod oct('0700'), '/tmp/screens/S-root';
   chmod oct('0755'), '/tmp/screens';
 }
